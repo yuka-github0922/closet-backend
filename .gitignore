@@ -1,0 +1,14 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# DB（ローカル開発用）
+app.db
+
+# Uploads（ローカル画像）
+uploads/
+
+# OS / Editor
+.DS_Store
+.vscode/
