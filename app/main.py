@@ -3,17 +3,23 @@ from typing import Optional, List
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, exists, literal, func
+from fastapi.staticfiles import StaticFiles
 
 from app.database import SessionLocal, engine
 
-from app.models import ClothingItem as ClothingItemModel
 from app.models import Base, ClothingItem as ClothingItemModel
 from app.schemas import ClothingItemCreate, ClothingItemResponse
 from app.enums import Category, Color, Season
 
+import os
+import uuid
+from fastapi import UploadFile, File
+
 app = FastAPI()
 # テーブル作成（MVPなので create_all でOK）
 Base.metadata.create_all(bind=engine)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 
 # ★ 必ず Depends より前に定義する
 def get_db():
@@ -53,14 +59,14 @@ def create_item(
     body: ClothingItemCreate,
     db: Session = Depends(get_db),
 ):
-    item = ClothingItem(
+    item = ClothingItemModel(
         name=body.name,
         categories=[c.value for c in body.categories],
         colors=[c.value for c in body.colors],
         seasons=[s.value for s in body.seasons],
         size=body.size,
         material=body.material,
-        image_path="dummy.jpg",
+        image_path=body.image_path,
         owner_id=1,
     )
     db.add(item)
@@ -77,10 +83,6 @@ def create_item(
         material=item.material,
         image_path=item.image_path,
     )
-
-
-
-
 
 def _split_csv(value: Optional[str]) -> list[str]:
     if not value:
@@ -147,3 +149,21 @@ def list_items(
     q = q.order_by(ClothingItemModel.created_at.desc())
 
     return q.all()
+
+@app.post("/upload")
+def upload_image(file: UploadFile = File(...)):
+    # 拡張子チェック（最低限）
+    allowed = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+    if file.content_type not in allowed:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    ext = allowed[file.content_type]
+    filename = f"{uuid.uuid4().hex}{ext}"
+    save_path = os.path.join("uploads", filename)
+
+    # 保存
+    with open(save_path, "wb") as f:
+        f.write(file.file.read())
+
+    # クライアントに返す（DBに保存する用）
+    return {"path": f"/uploads/{filename}"}

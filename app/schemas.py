@@ -7,8 +7,9 @@ class ClothingItemCreate(BaseModel):
     categories: list[Category]
     colors: list[Color]
     seasons: list[Season]
-    size: str
-    material: str
+    size: str = ""
+    material: str = ""
+    image_path: str = ""
 
 
 class ClothingItemResponse(BaseModel):
@@ -17,8 +18,8 @@ class ClothingItemResponse(BaseModel):
     categories: list[Category]
     colors: list[Color]
     seasons: list[Season]
-    size: str
-    material: str
-    image_path: str
+    size: str = ""
+    material: str = ""
+    image_path: str = ""
 
     model_config = {"from_attributes": True}
