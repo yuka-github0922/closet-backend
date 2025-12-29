@@ -15,10 +15,19 @@ import os
 import uuid
 from fastapi import UploadFile, File
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
 # テーブル作成（MVPなので create_all でOK）
 Base.metadata.create_all(bind=engine)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ★ 必ず Depends より前に定義する
