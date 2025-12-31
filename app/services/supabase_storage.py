@@ -1,7 +1,16 @@
 import os
 from uuid import uuid4
-from supabase import create_client
+from supabase import create_client, Client
+from urllib.parse import urlparse
 
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "uploads")
+
+if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+    raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY が未設定です")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 def get_supabase_client():
     url = os.environ["SUPABASE_URL"]
@@ -45,3 +54,32 @@ def upload_image_to_supabase(file_bytes: bytes, content_type: str, filename: str
     if hasattr(public, "public_url"):
         return public.public_url
     return str(public)
+
+def extract_storage_path_from_public_url(public_url: str) -> str:
+    """
+    例:
+    https://xxxx.supabase.co/storage/v1/object/public/uploads/abc/def.png
+    -> abc/def.png を返す（bucket名 uploads は除外）
+    """
+    if not public_url:
+        return ""
+
+    path = urlparse(public_url).path  # /storage/v1/object/public/uploads/abc/def.png
+    marker = f"/storage/v1/object/public/{SUPABASE_BUCKET}/"
+    if marker not in path:
+        return ""
+
+    return path.split(marker, 1)[1]
+
+
+def delete_file_by_public_url(public_url: str) -> None:
+    storage_path = extract_storage_path_from_public_url(public_url)
+
+    if not storage_path:
+        raise RuntimeError("storage_path が空。URL形式か bucket 名が合ってない")
+
+    res = supabase.storage.from_(SUPABASE_BUCKET).remove([storage_path])
+
+    # supabase-py は失敗しても例外じゃなく、resに入ることがある
+    if isinstance(res, dict) and res.get("error"):
+        raise RuntimeError(f"Supabase remove error: {res['error']}")

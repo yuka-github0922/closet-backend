@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from typing import Optional, List
 
 from fastapi import FastAPI, Depends, HTTPException
@@ -7,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import SessionLocal, engine
 
+
 from app.models import Base, ClothingItem as ClothingItemModel
 from app.schemas import ClothingItemCreate, ClothingItemResponse
 from app.enums import Category, Color, Season
@@ -14,12 +18,10 @@ from app.enums import Category, Color, Season
 import os
 import uuid
 from fastapi import UploadFile, File
-from dotenv import load_dotenv
 
 from app.services.supabase_storage import upload_image_to_supabase
+from app.services.supabase_storage import delete_file_by_public_url
 from fastapi.middleware.cors import CORSMiddleware
-
-load_dotenv()
 
 app = FastAPI()
 # テーブル作成（MVPなので create_all でOK）
@@ -183,9 +185,19 @@ async def upload(file: UploadFile = File(...)):
 def delete_item(item_id: int, db: Session = Depends(get_db)):
     item = db.query(ClothingItemModel).filter(ClothingItemModel.id == item_id).first()
     if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="item not found")
 
-    # 画像ファイルも消したいならここで unlink（MVPでは後回しでOK）
+    # 先に画像URLを退避
+    image_url = item.image_path
+
+    # DB削除
     db.delete(item)
     db.commit()
+
+    # Storage削除（失敗してもDBは消えてるので、ここは落とさないのがMVP的に良い）
+    try:
+        delete_file_by_public_url(image_url)
+    except Exception as e:
+        print("WARN: failed to delete storage file:", e)
+
     return {"ok": True}
