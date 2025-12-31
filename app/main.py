@@ -14,8 +14,12 @@ from app.enums import Category, Color, Season
 import os
 import uuid
 from fastapi import UploadFile, File
+from dotenv import load_dotenv
 
+from app.services.supabase_storage import upload_image_to_supabase
 from fastapi.middleware.cors import CORSMiddleware
+
+load_dotenv()
 
 app = FastAPI()
 # テーブル作成（MVPなので create_all でOK）
@@ -23,7 +27,10 @@ Base.metadata.create_all(bind=engine)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+        allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,6 +85,7 @@ def create_item(
         image_path=body.image_path,
         owner_id=1,
     )
+    print("DEBUG create_item body:", body.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -116,7 +124,7 @@ def _json_array_contains_any(column, values: list[str]):
     )
 
 
-@app.get("/items", response_model=List[ClothingItemResponse])
+@app.get("/items")
 def list_items(
     keyword: Optional[str] = None,
     category: Optional[str] = None,
@@ -124,58 +132,51 @@ def list_items(
     season: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    categories = _split_csv(category)
-    colors = _split_csv(color)
-    seasons = _split_csv(season)
-
     q = db.query(ClothingItemModel)
 
-    # keyword（nameの部分一致）
     if keyword:
-        like = f"%{keyword}%"
-        q = q.filter(ClothingItemModel.name.ilike(like))  # SQLiteでも動く
+        q = q.filter(ClothingItemModel.name.contains(keyword))
+    if category:
+        q = q.filter(ClothingItemModel.categories.contains([category]))
+    if color:
+        q = q.filter(ClothingItemModel.colors.contains([color]))
+    if season:
+        q = q.filter(ClothingItemModel.seasons.contains([season]))
 
-        # materialも検索対象にしたいならこれを足す：
-        # q = q.filter(or_(
-        #     ClothingItemModel.name.ilike(like),
-        #     ClothingItemModel.material.ilike(like),
-        # ))
-
-    # categories / colors / seasons（JSON配列の “含む” 判定）
-    cat_cond = _json_array_contains_any(ClothingItemModel.categories, categories)
-    if cat_cond is not None:
-        q = q.filter(cat_cond)
-
-    color_cond = _json_array_contains_any(ClothingItemModel.colors, colors)
-    if color_cond is not None:
-        q = q.filter(color_cond)
-
-    season_cond = _json_array_contains_any(ClothingItemModel.seasons, seasons)
-    if season_cond is not None:
-        q = q.filter(season_cond)
-
-    # 新しい順
-    q = q.order_by(ClothingItemModel.created_at.desc())
-
-    return q.all()
+    items = q.order_by(ClothingItemModel.id.desc()).all()
+    print("DEBUG item:", items[0].__dict__)
+    return [
+        {
+            "id": item.id,
+            "name": item.name,
+            "categories": item.categories,
+            "colors": item.colors,
+            "seasons": item.seasons,
+            "size": item.size,
+            "material": item.material,
+            "image_path": item.image_path,
+        }
+        for item in items
+    ]
 
 @app.post("/upload")
-def upload_image(file: UploadFile = File(...)):
-    # 拡張子チェック（最低限）
-    allowed = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
-    if file.content_type not in allowed:
-        raise HTTPException(status_code=400, detail="Unsupported file type")
+async def upload(file: UploadFile = File(...)):
+    # バリデーション（最低限）
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="image file only")
 
-    ext = allowed[file.content_type]
-    filename = f"{uuid.uuid4().hex}{ext}"
-    save_path = os.path.join("uploads", filename)
+    data = await file.read()
+    try:
+        public_url = upload_image_to_supabase(
+            file_bytes=data,
+            content_type=file.content_type,
+            filename=file.filename,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"upload failed: {e}")
 
-    # 保存
-    with open(save_path, "wb") as f:
-        f.write(file.file.read())
-
-    # クライアントに返す（DBに保存する用）
-    return {"path": f"/uploads/{filename}"}
+    # フロントはこれをimage_pathとして/itemsに渡す
+    return {"image_path": public_url}
 
 
 @app.delete("/items/{item_id}")
