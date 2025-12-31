@@ -176,3 +176,15 @@ def upload_image(file: UploadFile = File(...)):
 
     # クライアントに返す（DBに保存する用）
     return {"path": f"/uploads/{filename}"}
+
+
+@app.delete("/items/{item_id}")
+def delete_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(ClothingItemModel).filter(ClothingItemModel.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # 画像ファイルも消したいならここで unlink（MVPでは後回しでOK）
+    db.delete(item)
+    db.commit()
+    return {"ok": True}
