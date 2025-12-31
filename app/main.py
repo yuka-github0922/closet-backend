@@ -87,7 +87,7 @@ def create_item(
         image_path=body.image_path,
         owner_id=1,
     )
-    print("DEBUG create_item body:", body.model_dump())
+
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -146,7 +146,7 @@ def list_items(
         q = q.filter(ClothingItemModel.seasons.contains([season]))
 
     items = q.order_by(ClothingItemModel.id.desc()).all()
-    print("DEBUG item:", items[0].__dict__)
+
     return [
         {
             "id": item.id,
