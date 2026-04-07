@@ -6,6 +6,11 @@ class Category(enum.Enum):
     tops = "tops"
     outer = "outer"
     bottoms = "bottoms"
+    dress = "dress"
+    shoes = "shoes"
+    bag = "bag"
+    other = "other"
+    accessory = "accessory"
 
 
 class Color(enum.Enum):
@@ -14,6 +19,13 @@ class Color(enum.Enum):
     red = "red"
     blue = "blue"
     beige = "beige"
+    gray = "gray"
+    yellow = "yellow"
+    pink = "pink"
+    green = "green"
+    purple = "purple"
+    brown = "brown"
+    other = "other"
 
 
 class Season(enum.Enum):
