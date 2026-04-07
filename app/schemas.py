@@ -10,6 +10,7 @@ class ClothingItemCreate(BaseModel):
     size: str = ""
     material: str = ""
     image_path: str = ""
+    owner_id: str
 
 
 class ClothingItemResponse(BaseModel):
@@ -21,5 +22,6 @@ class ClothingItemResponse(BaseModel):
     size: str = ""
     material: str = ""
     image_path: str = ""
+    owner_id: str 
 
     model_config = {"from_attributes": True}

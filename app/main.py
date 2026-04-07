@@ -85,7 +85,7 @@ def create_item(
         size=body.size,
         material=body.material,
         image_path=body.image_path,
-        owner_id=1,
+        owner_id=body.owner_id,
     )
 
     db.add(item)
@@ -101,6 +101,7 @@ def create_item(
         size=item.size,
         material=item.material,
         image_path=item.image_path,
+        owner_id=item.owner_id,
     )
 
 def _split_csv(value: Optional[str]) -> list[str]:
@@ -128,13 +129,14 @@ def _json_array_contains_any(column, values: list[str]):
 
 @app.get("/items")
 def list_items(
+    owner_id: str,
     keyword: Optional[str] = None,
     category: Optional[str] = None,
     color: Optional[str] = None,
     season: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    q = db.query(ClothingItemModel)
+    q = db.query(ClothingItemModel).filter(ClothingItemModel.owner_id == owner_id)
 
     if keyword:
         q = q.filter(ClothingItemModel.name.contains(keyword))
@@ -157,6 +159,7 @@ def list_items(
             "size": item.size,
             "material": item.material,
             "image_path": item.image_path,
+            "owner_id": item.owner_id,
         }
         for item in items
     ]
